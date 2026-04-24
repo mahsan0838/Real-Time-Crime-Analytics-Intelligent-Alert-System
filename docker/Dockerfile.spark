@@ -1,0 +1,8 @@
+FROM apache/spark:latest
+
+USER root
+
+# Install Python dependencies
+RUN pip install numpy pandas
+
+USER spark
