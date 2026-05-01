@@ -47,3 +47,50 @@ print('Done')"
 ...
 
 (Truncated for brevity --- full README content preserved in actual file)
+
+------------------------------------------------------------------------
+
+## Running the Full System (Updated)
+
+### Start infrastructure
+
+```bash
+docker compose -f docker/docker-compose.yml up -d --build
+```
+
+### Create Kafka topics (once)
+
+```bash
+export MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*'
+docker exec -i kafka kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic crime_events --partitions 1 --replication-factor 1
+docker exec -i kafka kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic crime_alerts --partitions 1 --replication-factor 1
+```
+
+### Submit the Apache Storm multi-bolt topology (Required)
+
+```bash
+bash scripts/submit_storm_topology.sh
+```
+
+Open Storm UI:
+
+- `http://localhost:8080`
+
+### Run Kafka producer (crime simulator)
+
+```bash
+venv/Scripts/python kafka/producer.py
+```
+
+### Run Spark batch layer
+
+```bash
+export MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*'
+docker exec -i spark /opt/spark/bin/spark-submit /opt/spark/app/run_batch_layer.py
+```
+
+### Run dashboard (optional)
+
+```bash
+streamlit run dashboard/app.py
+```

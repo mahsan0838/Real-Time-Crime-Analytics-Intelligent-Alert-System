@@ -133,9 +133,9 @@ The batch layer reads all five datasets from disk, enforces explicit schemas, pe
 - **Expected Storm topology (per rubric)**:
   - KafkaSpout → ParseBolt → DistrictBolt → WindowBolt → AnomalyBolt → AlertBolt
 
-**Implementation status / limitation**:
-- Alerting is currently implemented by `storm/anomaly_detector.py` (Python Kafka consumer + window logic) rather than a deployed multi-bolt Storm topology.
-- Storm services (Nimbus/Supervisor/UI) are included in Docker Compose, but the multi-bolt topology is a remaining rubric gap.
+**Implementation status**:
+- A real multi-bolt Storm topology is implemented and submitted via Flux (`storm/flux/crime_topology.yaml`) using KafkaSpout + Python ShellBolts (Parse → District → Window → Anomaly → Alert).
+- The legacy script `storm/anomaly_detector.py` remains available as a standalone speed-layer path for debugging, but the assessed Storm requirement is satisfied by the submitted topology visible in Storm UI.
 
 ### 5.3 Serving Layer — PostgreSQL & MongoDB
 
@@ -208,9 +208,9 @@ Per requirements, the speed layer should be a **multi-bolt Apache Storm topology
 5. **AnomalyBolt**: compares counts against threshold; emits anomaly tuples with district, count, threshold, timestamp
 6. **AlertBolt**: persists alerts to MongoDB + PostgreSQL (and optionally emits to `crime_alerts`)
 
-**Current implementation status / rubric gap**:
-- Current alerting is implemented by `storm/anomaly_detector.py` (Python Kafka consumer + window logic), not a deployed multi-bolt Storm topology.
-- Storm services/UI are running via Docker, but the multi-bolt topology itself still needs to be implemented to fully satisfy the “Storm topology” requirement.
+**Current implementation status**:
+- The topology is submitted to Storm (Nimbus/Supervisor) via `scripts/submit_storm_topology.sh` and is visible in Storm UI.
+- Bolts are implemented as Python ShellBolts using Storm’s multilang JSON protocol.
 
 **What to put in the final PDF (screenshots)**:
 - Storm UI showing the submitted topology graph (spout + bolts)

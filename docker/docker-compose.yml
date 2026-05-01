@@ -43,7 +43,9 @@ services:
       - mongo_data:/data/db
 
   nimbus:
-    image: storm:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.storm
     container_name: storm_nimbus
     command: storm nimbus
     depends_on:
@@ -52,9 +54,14 @@ services:
       - STORM_ZOOKEEPER_SERVERS=zookeeper
     ports:
       - "6627:6627"
+    volumes:
+      - ../storm:/opt/storm_app/storm
+      - ../config:/opt/storm_app/config
 
   supervisor:
-    image: storm:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.storm
     container_name: storm_supervisor
     command: storm supervisor
     depends_on:
@@ -63,9 +70,14 @@ services:
     environment:
       - STORM_ZOOKEEPER_SERVERS=zookeeper
       - STORM_NIMBUS_HOST=nimbus
+    volumes:
+      - ../storm:/opt/storm_app/storm
+      - ../config:/opt/storm_app/config
 
   ui:
-    image: storm:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.storm
     container_name: storm_ui
     command: storm ui
     depends_on:
@@ -75,6 +87,9 @@ services:
       - STORM_NIMBUS_HOST=nimbus
     ports:
       - "8080:8080"
+    volumes:
+      - ../storm:/opt/storm_app/storm
+      - ../config:/opt/storm_app/config
 
   spark:
     build:

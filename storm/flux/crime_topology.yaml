@@ -1,0 +1,110 @@
+# Storm Flux topology: KafkaSpout -> ParseBolt -> DistrictBolt -> WindowBolt -> AnomalyBolt -> AlertBolt
+#
+# This uses KafkaSpout (JVM) and Python ShellBolts via the Storm multilang JSON protocol.
+#
+# Submit from inside the nimbus container with:
+#   storm jar /apache-storm/lib/storm-flux*.jar org.apache.storm.flux.Flux --remote storm/flux/crime_topology.yaml
+#
+name: "crime-analytics-topology"
+
+config:
+  topology.workers: 1
+  topology.tick.tuple.freq.secs: 10
+
+spouts:
+  - id: "kafkaSpout"
+    className: "org.apache.storm.kafka.spout.KafkaSpout"
+    constructorArgs:
+      - ref: "spoutConfig"
+
+bolts:
+  - id: "parseBolt"
+    className: "org.apache.storm.flux.wrappers.bolts.FluxShellBolt"
+    constructorArgs:
+      - ["python3", "/opt/storm_app/storm/bolts/parse_bolt.py"]
+      - ["json"]
+    parallelism: 1
+
+  - id: "districtBolt"
+    className: "org.apache.storm.flux.wrappers.bolts.FluxShellBolt"
+    constructorArgs:
+      - ["python3", "/opt/storm_app/storm/bolts/district_bolt.py"]
+      - ["district", "json"]
+    parallelism: 1
+
+  - id: "windowBolt"
+    className: "org.apache.storm.flux.wrappers.bolts.FluxShellBolt"
+    constructorArgs:
+      - ["python3", "/opt/storm_app/storm/bolts/window_bolt.py"]
+      - ["district", "count", "ts"]
+    parallelism: 1
+
+  - id: "anomalyBolt"
+    className: "org.apache.storm.flux.wrappers.bolts.FluxShellBolt"
+    constructorArgs:
+      - ["python3", "/opt/storm_app/storm/bolts/anomaly_bolt.py"]
+      - ["district", "count", "threshold", "ts"]
+    parallelism: 1
+
+  - id: "alertBolt"
+    className: "org.apache.storm.flux.wrappers.bolts.FluxShellBolt"
+    constructorArgs:
+      - ["python3", "/opt/storm_app/storm/bolts/alert_bolt.py"]
+      - ["_"]
+    parallelism: 1
+
+streams:
+  - name: "kafkaSpout -> parseBolt"
+    from: "kafkaSpout"
+    to: "parseBolt"
+    grouping:
+      type: SHUFFLE
+
+  - name: "parseBolt -> districtBolt"
+    from: "parseBolt"
+    to: "districtBolt"
+    grouping:
+      type: SHUFFLE
+
+  - name: "districtBolt -> windowBolt"
+    from: "districtBolt"
+    to: "windowBolt"
+    grouping:
+      type: FIELDS
+      args: ["district"]
+
+  - name: "windowBolt -> anomalyBolt"
+    from: "windowBolt"
+    to: "anomalyBolt"
+    grouping:
+      type: SHUFFLE
+
+  - name: "anomalyBolt -> alertBolt"
+    from: "anomalyBolt"
+    to: "alertBolt"
+    grouping:
+      type: SHUFFLE
+
+components:
+  - id: "spoutConfigBuilder"
+    className: "org.apache.storm.kafka.spout.KafkaSpoutConfig$Builder"
+    constructorArgs:
+      - "kafka:9092"
+      - ["crime_events"]
+    properties:
+      - name: "firstPollOffsetStrategy"
+        value: EARLIEST
+    configMethods:
+      - name: "setProp"
+        args:
+          - {
+              "group.id": "crime-analytics-storm",
+              "key.deserializer": "org.apache.kafka.common.serialization.StringDeserializer",
+              "value.deserializer": "org.apache.kafka.common.serialization.StringDeserializer"
+            }
+
+  - id: "spoutConfig"
+    className: "org.apache.storm.kafka.spout.KafkaSpoutConfig"
+    constructorArgs:
+      - ref: "spoutConfigBuilder"
+

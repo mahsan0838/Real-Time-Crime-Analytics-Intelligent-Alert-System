@@ -1,0 +1,29 @@
+FROM storm:latest
+
+USER root
+
+# Python for multilang ShellBolts
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends python3 python3-pip curl ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
+
+# Install only what our bolts need (keep image smaller)
+RUN pip3 install --break-system-packages --no-cache-dir \
+  pyyaml \
+  psycopg2-binary \
+  pymongo
+
+# Add Storm Flux jars (not included in storm:latest image)
+RUN curl -fsSL -o /apache-storm/extlib/flux-core-2.8.7.jar \
+  https://repo1.maven.org/maven2/org/apache/storm/flux-core/2.8.7/flux-core-2.8.7.jar \
+  && curl -fsSL -o /apache-storm/extlib/flux-wrappers-2.8.7.jar \
+  https://repo1.maven.org/maven2/org/apache/storm/flux-wrappers/2.8.7/flux-wrappers-2.8.7.jar
+
+# KafkaSpout (storm-kafka-client) + Kafka clients dependency
+RUN curl -fsSL -o /apache-storm/extlib/storm-kafka-client-2.8.7.jar \
+  https://repo1.maven.org/maven2/org/apache/storm/storm-kafka-client/2.8.7/storm-kafka-client-2.8.7.jar \
+  && curl -fsSL -o /apache-storm/extlib/kafka-clients-3.9.0.jar \
+  https://repo1.maven.org/maven2/org/apache/kafka/kafka-clients/3.9.0/kafka-clients-3.9.0.jar
+
+USER storm
+
