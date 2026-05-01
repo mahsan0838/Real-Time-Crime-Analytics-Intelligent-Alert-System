@@ -3,6 +3,10 @@ FROM apache/spark:latest
 USER root
 
 # Install Python dependencies
-RUN pip install numpy pandas
+RUN pip install --no-cache-dir numpy pandas pyyaml
+
+# Add PostgreSQL JDBC driver for Spark JDBC writes
+RUN curl -fsSL -o /opt/spark/jars/postgresql-42.7.3.jar \
+    https://repo1.maven.org/maven2/org/postgresql/postgresql/42.7.3/postgresql-42.7.3.jar
 
 USER spark

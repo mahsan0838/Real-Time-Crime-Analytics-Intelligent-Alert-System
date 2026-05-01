@@ -29,7 +29,7 @@ services:
       POSTGRES_PASSWORD: crime_pass
       POSTGRES_DB: crime_analytics
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ../db/postgres_init.sql:/docker-entrypoint-initdb.d/init.sql
@@ -88,7 +88,8 @@ services:
       - "7077:7077"
     volumes:
       - ../spark:/opt/spark/app
-      - ../data:/opt/spark/data
+      - ../config:/opt/spark/app/config
+      - ../data:/opt/spark/app/data
     command: /opt/spark/bin/spark-class org.apache.spark.deploy.master.Master
 
 volumes:

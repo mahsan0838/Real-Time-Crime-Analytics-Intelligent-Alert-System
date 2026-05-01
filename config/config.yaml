@@ -5,18 +5,19 @@ kafka:
   broker: "localhost:9092"
   topic: "crime_events"
   producer_rate: 1  # 1 row per second
+  topic_out: "crime_alerts"
 
 # PostgreSQL Settings
 postgres:
-  host: "localhost"
-  port: 5432
+  host: "127.0.0.1"
+  port: 5433
   database: "crime_analytics"
   user: "crime_user"
   password: "crime_pass"
 
 # MongoDB Settings
 mongodb:
-  host: "localhost"
+  host: "127.0.0.1"
   port: 27017
   database: "crime_analytics"
   collection_alerts: "alert_logs"
@@ -25,12 +26,12 @@ mongodb:
 storm:
   window_length_minutes: 5
   slide_interval_minutes: 1
-  anomaly_threshold: 100  # Alert if crimes > 100 per district in window
+  anomaly_threshold: 20  # lower for demo; tune as needed
 
 # File Paths (relative to project root)
 data_paths:
-  crime: "data/Crimes_-_2001_to_Present.csv"
-  arrests: "data/Arrests.csv"
-  police_stations: "data/Police_Stations.csv"
-  violence: "data/Violence_Reduction.csv"
-  sex_offenders: "data/Sex_Offenders.csv"
+  crime: "data/Crimes_-_2001_to_Present_20260501.csv"
+  arrests: "data/Arrests_20260501.csv"
+  police_stations: "data/Police_Stations_20260501.csv"
+  violence: "data/Violence_Reduction_-_Victims_of_Homicides_and_Non-Fatal_Shootings_20260501.csv"
+  sex_offenders: "data/Sex_Offenders_20260501.csv"

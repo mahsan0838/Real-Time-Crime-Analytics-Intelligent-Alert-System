@@ -1,25 +1,34 @@
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import col, count, when, avg, corr
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from config.runtime import load_config, resolve_data_path
 
 spark = SparkSession.builder.appName("CrossCorrelation").getOrCreate()
 
+# Load config
+CFG = load_config()
+
 # Load Crime data
-crime_df = spark.read.option("header", "true").csv("../data/Crimes_Sample_50k_clean.csv")
+crime_df = spark.read.option("header", "true").csv(str(resolve_data_path(CFG, "crime")))
 for old in crime_df.columns:
     crime_df = crime_df.withColumnRenamed(old, old.replace(" ", "_"))
 
 # Load Violence data
-violence_df = spark.read.option("header", "true").csv("../data/Violence_Reduction.csv")
+violence_df = spark.read.option("header", "true").csv(str(resolve_data_path(CFG, "violence")))
 for old in violence_df.columns:
     violence_df = violence_df.withColumnRenamed(old, old.replace(" ", "_"))
 
 # Load Sex Offenders data
-sex_df = spark.read.option("header", "true").csv("../data/Sex_Offenders_20260423.csv")
+sex_df = spark.read.option("header", "true").csv(str(resolve_data_path(CFG, "sex_offenders")))
 for old in sex_df.columns:
     sex_df = sex_df.withColumnRenamed(old, old.replace(" ", "_"))
 
 # Load Police Stations
-police_df = spark.read.option("header", "true").csv("../data/Police_Stations.csv")
+police_df = spark.read.option("header", "true").csv(str(resolve_data_path(CFG, "police_stations")))
 for old in police_df.columns:
     police_df = police_df.withColumnRenamed(old, old.replace(" ", "_"))
 

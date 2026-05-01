@@ -1,10 +1,21 @@
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import col, count, sum, when, year, month, hour, to_timestamp, date_format
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from config.runtime import get_postgres, load_config, resolve_data_path
 
 spark = SparkSession.builder.appName("PopulateTables").getOrCreate()
 
+# Load config
+CFG = load_config()
+PG = get_postgres(CFG)
+
 # Load crime data
-crime_df = spark.read.option("header", "true").csv("../data/Crimes_Sample_50k_clean.csv")
+crime_path = str(resolve_data_path(CFG, "crime"))
+crime_df = spark.read.option("header", "true").csv(crime_path)
 for old in crime_df.columns:
     crime_df = crime_df.withColumnRenamed(old, old.replace(" ", "_"))
 
@@ -19,11 +30,11 @@ crime_trends = crime_df \
     .withColumnRenamed("count", "crime_count")
 
 crime_trends.write.format("jdbc").mode("overwrite").options(
-    url="jdbc:postgresql://postgres:5432/crime_analytics",
+    url=f"jdbc:postgresql://{PG.host}:{PG.port}/{PG.database}",
     driver="org.postgresql.Driver",
     dbtable="crime_trends",
-    user="crime_user",
-    password="crime_pass"
+    user=PG.user,
+    password=PG.password,
 ).save()
 print("Crime trends saved to PostgreSQL")
 
@@ -37,11 +48,11 @@ arrest_rates = crime_df.groupBy("Primary_Type").agg(
 arrest_rates = arrest_rates.withColumnRenamed("Primary_Type", "crime_type")
 
 arrest_rates.write.format("jdbc").mode("overwrite").options(
-    url="jdbc:postgresql://postgres:5432/crime_analytics",
+    url=f"jdbc:postgresql://{PG.host}:{PG.port}/{PG.database}",
     driver="org.postgresql.Driver",
     dbtable="arrest_rates",
-    user="crime_user",
-    password="crime_pass"
+    user=PG.user,
+    password=PG.password,
 ).save()
 print("Arrest rates saved to PostgreSQL")
 

@@ -3,11 +3,43 @@ import time
 import csv
 from kafka import KafkaProducer
 import os
+from pathlib import Path
 
-# Configuration
-KAFKA_BROKER = 'localhost:9092'
-TOPIC = 'crime_events'
-CSV_PATH = '../data/Crimes_Sample_50k_clean.csv'
+import yaml
+
+def _load_config():
+    # project_root/kafka/producer.py -> project_root
+    project_root = Path(__file__).resolve().parents[1]
+    cfg_path = project_root / "config" / "config.yaml"
+    if not cfg_path.exists():
+        return project_root, {}
+    return project_root, yaml.safe_load(cfg_path.read_text(encoding="utf-8")) or {}
+
+
+def _resolve_csv_path(project_root: Path, cfg: dict) -> str:
+    # Prefer a sample file if present, otherwise fall back to config.yaml path.
+    candidates = [
+        project_root / "data" / "Crimes_Sample_50k_clean.csv",
+        project_root / "data" / "Crimes_Sample_50k.csv",
+    ]
+    cfg_rel = (((cfg or {}).get("data_paths") or {}).get("crime") or "").strip()
+    if cfg_rel:
+        candidates.append(project_root / cfg_rel)
+
+    for p in candidates:
+        if p.exists():
+            return str(p)
+
+    # last resort: keep previous relative behavior
+    return str(project_root.parent / "data" / "Crimes_Sample_50k_clean.csv")
+
+
+# Configuration (from config/config.yaml when available)
+PROJECT_ROOT, CFG = _load_config()
+KAFKA_BROKER = ((CFG.get("kafka") or {}).get("broker")) or "localhost:9092"
+TOPIC = ((CFG.get("kafka") or {}).get("topic")) or "crime_events"
+RATE = int(((CFG.get("kafka") or {}).get("producer_rate")) or 1)  # rows/sec
+CSV_PATH = _resolve_csv_path(PROJECT_ROOT, CFG)
 
 # Create producer
 producer = KafkaProducer(
@@ -16,6 +48,8 @@ producer = KafkaProducer(
 )
 
 print(f"Starting producer... sending to topic: {TOPIC}")
+print(f"Kafka broker: {KAFKA_BROKER}")
+print(f"CSV path: {CSV_PATH}")
 
 # Try different encodings
 encodings = ['utf-8', 'latin-1', 'cp1252', 'ISO-8859-1']
@@ -62,8 +96,8 @@ with open(CSV_PATH, 'r', encoding=file_encoding) as f:
         count += 1
         print(f"[{count}] Sent: {message['case_number']} - {message['primary_type']}")
         
-        # Wait 1 second between messages
-        time.sleep(1)
+        # Wait between messages
+        time.sleep(1 / max(RATE, 1))
 
 producer.flush()
 print(f"Done! Sent {count} messages")

@@ -39,3 +39,23 @@ CREATE TABLE IF NOT EXISTS arrest_rates (
     race VARCHAR(50),
     arrest_rate DECIMAL(5,2)
 );
+
+-- Violence analytics (7.3)
+CREATE TABLE IF NOT EXISTS violence_stats (
+    id SERIAL PRIMARY KEY,
+    month INT,
+    district INT,
+    homicides_count BIGINT,
+    nonfatal_shootings_count BIGINT,
+    gunshot_injury_rate DECIMAL(6,4),
+    top_community_area INT,
+    top_community_area_count BIGINT
+);
+
+-- Sex offender density (7.4)
+CREATE TABLE IF NOT EXISTS sex_offender_density (
+    id SERIAL PRIMARY KEY,
+    district INT,
+    offender_count BIGINT,
+    victim_minor_count BIGINT
+);

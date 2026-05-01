@@ -3,11 +3,19 @@ from pyspark.sql.functions import col, when
 from pyspark.ml.clustering import KMeans
 from pyspark.ml.feature import VectorAssembler
 from pyspark.sql.types import *
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from config.runtime import load_config, resolve_data_path
 
 spark = SparkSession.builder.appName("CrimeHotspots").getOrCreate()
 
 # Load data
-df = spark.read.option("header", "true").csv("../data/Crimes_Sample_50k_clean.csv")
+CFG = load_config()
+crime_path = str(resolve_data_path(CFG, "crime"))
+df = spark.read.option("header", "true").csv(crime_path)
 
 # Clean column names
 for old_name in df.columns:
@@ -31,8 +39,8 @@ print(f"Crimes with valid coordinates: {hotspot_df.count()}")
 assembler = VectorAssembler(inputCols=["Latitude", "Longitude"], outputCol="features")
 assembled_df = assembler.transform(hotspot_df)
 
-# K-Means with k=5 (k=10 will take longer)
-kmeans = KMeans().setK(5).setSeed(42).setFeaturesCol("features").setPredictionCol("cluster")
+# K-Means (default k=10 per assignment; can change in code if needed)
+kmeans = KMeans().setK(10).setSeed(42).setFeaturesCol("features").setPredictionCol("cluster")
 model = kmeans.fit(assembled_df)
 
 # Show cluster centers

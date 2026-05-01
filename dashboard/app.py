@@ -3,15 +3,28 @@ import pandas as pd
 import psycopg2
 from pymongo import MongoClient
 import plotly.express as px
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from config.runtime import get_mongo, get_postgres, load_config
 
 st.set_page_config(page_title="Crime Analytics", layout="wide")
 
 st.title("🚨 Real-Time Crime Analytics & Intelligent Alert System")
 
 def load_data():
+    cfg = load_config()
+    pg = get_postgres(cfg)
+    mongo = get_mongo(cfg)
+
     conn = psycopg2.connect(
-        host="localhost", port=5432, database="crime_analytics",
-        user="crime_user", password="crime_pass"
+        host=pg.host,
+        port=pg.port,
+        database=pg.database,
+        user=pg.user,
+        password=pg.password,
     )
     # Get total count
     cur = conn.cursor()
@@ -25,9 +38,9 @@ def load_data():
     
     # MongoDB count
     try:
-        client = MongoClient("localhost", 27017)
-        db = client["crime_analytics"]
-        mongo_count = db.alert_logs.count_documents({})
+        client = MongoClient(mongo.host, mongo.port)
+        db = client[mongo.database]
+        mongo_count = db[mongo.collection_alerts].count_documents({})
         client.close()
     except:
         mongo_count = 0

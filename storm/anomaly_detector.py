@@ -1,35 +1,45 @@
-from kafka import KafkaConsumer, KafkaProducer
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
 import json
-import time
 from collections import defaultdict
 from datetime import datetime, timedelta
 import psycopg2
 from pymongo import MongoClient
 from bson import ObjectId
+from kafka import KafkaConsumer, KafkaProducer
 
-# Configuration
-KAFKA_BROKER = 'localhost:9092'
-INPUT_TOPIC = 'crime_events'
-OUTPUT_TOPIC = 'crime_alerts'
-WINDOW_SECONDS = 60
-THRESHOLD = 5
+from config.runtime import get_kafka, get_mongo, get_postgres, get_storm, load_config
+
+CFG = load_config()
+KAFKA = get_kafka(CFG)
+STORM = get_storm(CFG)
+PG = get_postgres(CFG)
+MONGO = get_mongo(CFG)
+
+KAFKA_BROKER = KAFKA.broker
+INPUT_TOPIC = KAFKA.topic_in
+OUTPUT_TOPIC = KAFKA.topic_out
+WINDOW_SECONDS = STORM.window_seconds
+THRESHOLD = STORM.anomaly_threshold
 
 # PostgreSQL connection
 pg_conn = psycopg2.connect(
-    host='localhost',
-    port=5432,
-    database='crime_analytics',
-    user='crime_user',
-    password='crime_pass'
+    host=PG.host,
+    port=PG.port,
+    database=PG.database,
+    user=PG.user,
+    password=PG.password,
 )
 pg_cursor = pg_conn.cursor()
 
 # MongoDB connection
-# MongoDB connection
-mongo_client = MongoClient('mongodb://localhost:27017/')
-mongo_db = mongo_client.crime_analytics
-mongo_alerts = mongo_db.alert_logs
-print("MongoDB connected to crime_analytics.alert_logs")
+mongo_client = MongoClient(f"mongodb://{MONGO.host}:{MONGO.port}/")
+mongo_db = mongo_client[MONGO.database]
+mongo_alerts = mongo_db[MONGO.collection_alerts]
+print(f"MongoDB connected to {MONGO.database}.{MONGO.collection_alerts}")
 
 # Custom JSON encoder to handle ObjectId
 class JSONEncoder(json.JSONEncoder):
@@ -54,6 +64,8 @@ producer = KafkaProducer(
 window = defaultdict(list)
 alerted_districts = set()  # Avoid duplicate alerts per window
 
+print(f"Kafka broker: {KAFKA_BROKER}")
+print(f"Kafka topics: {INPUT_TOPIC} -> {OUTPUT_TOPIC}")
 print(f"Monitoring crimes. Window: {WINDOW_SECONDS}s, Threshold: {THRESHOLD}")
 print("Press Ctrl+C to stop")
 
@@ -82,7 +94,7 @@ for message in consumer:
             'severity': 'HIGH'
         }
         
-        print(f"\n🚨 ALERT: District {district} - {count} crimes in last {WINDOW_SECONDS}s")
+        print(f"\nALERT: District {district} - {count} crimes in last {WINDOW_SECONDS}s")
         
         # Save to PostgreSQL
         pg_cursor.execute(
@@ -91,16 +103,10 @@ for message in consumer:
         )
         pg_conn.commit()
         
-                # Save to MongoDB
+        # Save to MongoDB
         try:
-            # Ensure database and collection exist
-            db = mongo_client['crime_analytics']
-            collection = db['alert_logs']
-            result = collection.insert_one(alert)
+            result = mongo_alerts.insert_one(alert)
             print(f"Saved to MongoDB with id: {result.inserted_id}")
-            # Verify it was saved
-            count = collection.count_documents({})
-            print(f"Total documents in MongoDB now: {count}")
         except Exception as e:
             print(f"MongoDB error: {e}")
         
