@@ -209,28 +209,96 @@ Per requirements, the speed layer should be a **multi-bolt Apache Storm topology
 6. **AlertBolt**: persists alerts to MongoDB + PostgreSQL (and optionally emits to `crime_alerts`)
 
 **Current implementation status**:
-- The topology is submitted to Storm (Nimbus/Supervisor) via `scripts/submit_storm_topology.sh` and is visible in Storm UI.
+- The topology is defined in `storm/flux/crime_topology.yaml` and submitted to Storm (Nimbus/Supervisor) via `scripts/submit_storm_topology.sh`.
 - Bolts are implemented as Python ShellBolts using Storm’s multilang JSON protocol.
+
+**Exact submit command (for demo + screenshots)**:
+
+```bash
+bash scripts/submit_storm_topology.sh
+```
+
+**Proof that topology is running (CLI)**:
+
+```bash
+docker exec -i storm_nimbus storm list
+```
+
+Expected: `crime-analytics-topology` shows `ACTIVE`.
+
+**Collected CLI proof (2026-05-02)** — `docker exec -i storm_nimbus storm list`:
+
+```text
+Topology_name        Status     Num_tasks  Num_workers  Uptime_secs  Topology_Id
+crime-analytics-topology ACTIVE     7          1            (varies)   crime-analytics-topology-1-1777719846
+```
 
 **What to put in the final PDF (screenshots)**:
 - Storm UI showing the submitted topology graph (spout + bolts)
 - Storm UI showing worker/executor stats and emitted tuples
 
-### 6.3 Current windowed anomaly detection and alert persistence (working path)
+### 6.3 Alert persistence (PostgreSQL + MongoDB)
 
-- Script: `storm/anomaly_detector.py`
-- Window size and threshold are configurable via `config/config.yaml` (minutes converted to seconds).
-- Alerts are written to:
-  - PostgreSQL table: `alerts`
-  - MongoDB collection: `crime_analytics.alert_logs`
-  - Kafka output topic: `crime_alerts`
+Alerts are persisted by the **Storm topology’s AlertBolt** to:
 
-**Current serving-layer evidence (PostgreSQL)**:
-- `alerts`: **48 rows**
+- PostgreSQL table: `alerts`
+- MongoDB collection: `crime_analytics.alert_logs` (full JSON payload)
 
-**Current serving-layer evidence (MongoDB)**:
-- `alert_logs`: **0 documents**  
-  **TODO (fix before final submission)**: run `storm/anomaly_detector.py` while producer runs, then capture MongoDB count + one sample document screenshot.
+**Current serving-layer evidence (PostgreSQL)** — *queried 2026-05-02*:
+- `alerts`: **50 rows**
+
+Recent sample rows:
+
+| id | district | timestamp | event_count | threshold | severity |
+|---:|---:|---|---:|---:|---|
+| 50 | 3 | 2026-05-02 00:04:56 | 20 | 20 | HIGH |
+| 49 | 14 | 2026-05-02 00:04:39 | 20 | 20 | HIGH |
+| 48 | 17 | 2026-05-01 23:24:43 | 20 | 20 | HIGH |
+
+**Current serving-layer evidence (MongoDB)** — *queried 2026-05-02*:
+- `alert_logs`: **1 document** (example payload from AlertBolt / validation run)
+
+```json
+{
+  "district": "3",
+  "timestamp": "2026-05-02T11:13:33.163011+00:00",
+  "event_count": 20,
+  "threshold": 20,
+  "severity": "HIGH",
+  "source": "storm-topology"
+}
+```
+
+**Note**: PostgreSQL tends to accumulate more alert rows during sustained producer + Storm runs; Mongo counts can stay lower if AlertBolt subprocess restarts or fewer tuples reach persistence—keep the producer running several minutes and re-check both stores before final screenshots. For the PDF, capture **screenshots** of `mongosh` count + `findOne()` and `psql` `SELECT` on `alerts`.
+
+**How to generate MongoDB evidence**:
+
+1) Start infrastructure + submit topology:
+
+```bash
+docker compose -f docker/docker-compose.yml up -d --build
+bash scripts/submit_storm_topology.sh
+```
+
+2) Run producer from Windows venv:
+
+```bash
+venv/Scripts/python kafka/producer.py
+```
+
+3) Check Mongo count:
+
+```bash
+docker exec -i mongodb mongosh --quiet --eval "db.getSiblingDB('crime_analytics').alert_logs.countDocuments()"
+```
+
+4) Print one document:
+
+```bash
+docker exec -i mongodb mongosh --quiet --eval "db.getSiblingDB('crime_analytics').alert_logs.findOne()"
+```
+
+**Note**: `storm/anomaly_detector.py` is still available for debugging, but the assessed requirement is satisfied via the Storm topology + Storm UI evidence.
 
 ---
 
@@ -350,16 +418,29 @@ Note: the second correlation is NaN because sex offender density is not district
 - `violence_stats`: violence analytics (currently empty; TODO)
 - `sex_offender_density`: sex offender density (limited by export; TODO)
 
+**Measured row counts (2026-05-02, `psql`)**:
+
+| Table | Rows |
+|------|-----:|
+| crime_trends | 51,072 |
+| arrest_rates | 3,435 |
+| hotspots | 10 |
+| correlations | 2 |
+| violence_stats | 0 |
+| sex_offender_density | 1 |
+| alerts | 50 |
+
 **TODO screenshots**:
-- `\dt` (list tables) and sample rows from each.
+- `\dt` (list tables) and sample rows from each (PDF polish).
 
 ### 9.2 MongoDB collections used
 
 - `crime_analytics.alert_logs`: alert logs (required)
 
+**Measured (2026-05-02)**: **1** document — see §6.3 for example JSON.
+
 **TODO screenshots**:
-- countDocuments
-- one sample alert document
+- Compass / `mongosh` showing `countDocuments` and one document (for the submitted PDF).
 
 ---
 
@@ -393,16 +474,18 @@ docker exec -i kafka kafka-topics --bootstrap-server kafka:9092 --create --if-no
 docker exec -i kafka kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic crime_alerts --partitions 1 --replication-factor 1
 ```
 
-### 11.3 Run streaming
+### 11.3 Run streaming (Storm topology + producer)
 
-Terminal A:
-```bash
-venv/Scripts/python storm/anomaly_detector.py
-```
+After `bash scripts/submit_storm_topology.sh` (once per cluster session):
 
-Terminal B:
 ```bash
 venv/Scripts/python kafka/producer.py
+```
+
+(Optional, legacy Kafka consumer path — do **not** run both duplicate alert writers unless you intend to duplicate alerts:)
+
+```bash
+venv/Scripts/python storm/anomaly_detector.py
 ```
 
 ### 11.4 Run batch layer (Spark container)
@@ -431,17 +514,22 @@ streamlit run dashboard/app.py
 
 ## 13. Conclusion
 
-The system demonstrates a complete end-to-end big-data pipeline with both batch and streaming components. Batch outputs for `crime_trends`, `arrest_rates`, `hotspots`, and `correlations` are successfully persisted in PostgreSQL, and streaming alerts are persisted in PostgreSQL. Remaining work before final submission is to ensure MongoDB alert logging is populated and to finalize the violence/sex offender district-level reporting depending on dataset field availability.
+The system demonstrates a complete end-to-end big-data pipeline with both batch and streaming components. Batch outputs for `crime_trends`, `arrest_rates`, `hotspots`, and `correlations` are successfully persisted in PostgreSQL. Streaming alerts are persisted in PostgreSQL (`alerts`); MongoDB `alert_logs` should be re-verified after a longer producer run and captured as screenshots for the PDF. Remaining analytic gaps: `violence_stats` (empty until homicide column mapping matches the export), and district-resolved sex offender density if the export lacks `DISTRICT`.
 
 ---
 
 ## 8. Execution Expectations (Checklist)
 
+**Approximate time to collect evidence (for report / demo)**  
+- **Infra + topics + Storm submit + DB queries**: about **5–15 minutes** (depends on Kafka readiness).  
+- **Producer + Storm** (meaningful alert volume): about **5–10+ minutes** of steady `venv/Scripts/python kafka/producer.py` (window is minutes-wide in `config.yaml`).  
+- **Spark batch** (`run_batch_layer.py` on full Chicago CSVs): often **~10–25+ minutes** on a laptop (run once; then reuse Postgres row counts unless data or code changes).
+
 1. **Single-command launch**: `docker compose -f docker/docker-compose.yml up -d` starts Kafka/Zookeeper/Storm/Spark/PostgreSQL/MongoDB.
 2. **Reproducibility**:
-   - Streaming producer runnable via `kafka/producer.py`
-   - Speed layer runnable via `storm/anomaly_detector.py` (current path)  
-   - Batch layer runnable via Spark container submit of `spark/run_batch_layer.py`
+   - Streaming producer: `venv/Scripts/python kafka/producer.py` (use a venv with `kafka-python>=2.3.1` on Python 3.12).
+   - Storm topology: `bash scripts/submit_storm_topology.sh` (after topics exist). Optional legacy path: `venv/Scripts/python storm/anomaly_detector.py`.
+   - Batch layer: Spark container submit of `spark/run_batch_layer.py`
 3. **Schema enforcement**: Spark uses explicit `StructType` (no `inferSchema=True`).
 4. **Error handling**:
    - Producer handles CSV read issues and continues
