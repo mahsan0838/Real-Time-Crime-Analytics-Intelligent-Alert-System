@@ -23,7 +23,8 @@ def main() -> None:
             continue
 
         if not t.values:
-            fail(t.id)
+            log("ParseBolt received empty tuple values; dropping", level="warn")
+            ack(t.id)
             continue
 
         # KafkaSpout default translator typically emits:
@@ -47,7 +48,7 @@ def main() -> None:
             ack(t.id)
         except Exception as e:
             log(f"Parse error: {e} raw={raw!r}", level="error")
-            fail(t.id)
+            ack(t.id)
 
 
 if __name__ == "__main__":

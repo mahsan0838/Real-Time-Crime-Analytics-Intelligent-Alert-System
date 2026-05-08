@@ -19,7 +19,8 @@ def main() -> None:
             continue
 
         if not t.values:
-            fail(t.id)
+            log("DistrictBolt received empty tuple values; dropping", level="warn")
+            ack(t.id)
             continue
 
         try:
@@ -29,7 +30,7 @@ def main() -> None:
             ack(t.id)
         except Exception as e:
             log(f"DistrictBolt error: {e}", level="error")
-            fail(t.id)
+            ack(t.id)
 
 
 if __name__ == "__main__":

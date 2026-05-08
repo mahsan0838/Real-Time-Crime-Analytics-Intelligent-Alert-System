@@ -51,7 +51,8 @@ def main() -> None:
             continue
 
         if len(t.values) < 4:
-            fail(t.id)
+            log("AlertBolt received tuple with insufficient values; dropping", level="warn")
+            ack(t.id)
             continue
 
         try:
@@ -83,7 +84,7 @@ def main() -> None:
             ack(t.id)
         except Exception as e:
             log(f"AlertBolt error: {e}", level="error")
-            fail(t.id)
+            ack(t.id)
 
 
 if __name__ == "__main__":

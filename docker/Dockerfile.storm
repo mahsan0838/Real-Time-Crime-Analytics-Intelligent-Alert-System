@@ -23,7 +23,9 @@ RUN curl -fsSL -o /apache-storm/extlib/flux-core-2.8.7.jar \
 RUN curl -fsSL -o /apache-storm/extlib/storm-kafka-client-2.8.7.jar \
   https://repo1.maven.org/maven2/org/apache/storm/storm-kafka-client/2.8.7/storm-kafka-client-2.8.7.jar \
   && curl -fsSL -o /apache-storm/extlib/kafka-clients-3.9.0.jar \
-  https://repo1.maven.org/maven2/org/apache/kafka/kafka-clients/3.9.0/kafka-clients-3.9.0.jar
+  https://repo1.maven.org/maven2/org/apache/kafka/kafka-clients/3.9.0/kafka-clients-3.9.0.jar \
+  && curl -fsSL -o /apache-storm/extlib/commons-lang3-3.20.0.jar \
+  https://repo1.maven.org/maven2/org/apache/commons/commons-lang3/3.20.0/commons-lang3-3.20.0.jar
 
 # Jackson dependencies required by KafkaSpout/Kafka client path
 RUN curl -fsSL -o /apache-storm/extlib/jackson-core-2.17.2.jar \

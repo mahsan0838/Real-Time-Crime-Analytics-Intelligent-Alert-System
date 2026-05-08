@@ -89,7 +89,7 @@ components:
   - id: "spoutConfigBuilder"
     className: "org.apache.storm.kafka.spout.KafkaSpoutConfig$Builder"
     constructorArgs:
-      - "kafka:9092"
+      - "kafka:29092"
       - ["crime_events"]
     properties:
       - name: "firstPollOffsetStrategy"
